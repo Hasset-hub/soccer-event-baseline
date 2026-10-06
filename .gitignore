@@ -1,0 +1,33 @@
+# Large data, extracted frames and generated outputs
+# (git does not allow trailing comments on pattern lines, so comments go on their own lines)
+data/
+results_by_label_*/
+features/
+results/
+features_log.txt
+*.part
+
+# Secrets
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+
+# Temp files
+temp_extract.py

@@ -1,0 +1,6 @@
+{
+  "description": "Game-level split for the 10 EPL 2021-2022 games. Game IDs match the game_NN prefix written by process_10_games.py.",
+  "train": ["01", "02", "03", "04", "05", "06"],
+  "val": ["07", "08"],
+  "test": ["09", "10"]
+}
