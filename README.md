@@ -2,6 +2,8 @@
 
 Recognizing events in soccer broadcast video with general-purpose visual encoders (CLIP, DINOv2).
 
+**Weekly check-ins:** [checkins/](checkins/README.md) (latest: [Week 6, Oct 26](checkins/2026-10-26_week6/README.md)). The current pipeline is developed in [AcaiLab/Soccer](https://github.com/AcaiLab/Soccer/tree/cleanup/dino-contrastive).
+
 This repository starts from the state described in our last progress report:
 - 10 English Premier League 2021-22 matches;
 - frames extracted at 1 fps in a ±30 s window around each labeled event (627 events, 18,501 frames);
