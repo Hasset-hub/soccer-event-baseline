@@ -1,0 +1,38 @@
+Chosen on validation: BiLSTM (mean val macro-F1 0.3899 over 3 seed(s))
+Test games: 113 118 127 129 130 132 141 152 156 158 159 173 177 178 179 180 187 195 201 203 215 220 249 255 267 271 278 284 286 291 293 295 297 313 318 79 82 98  (2310 events)
+Test accuracy 0.4900 +/- 0.0136 (sd over 3 seeds)  macro-F1 0.3792 +/- 0.0154 (sd over 3 seeds)  balanced accuracy 0.4133 +/- 0.0072 (sd over 3 seeds)  majority-class baseline 0.1597
+95% interval, resampling test games (all seeds pooled): accuracy 0.471-0.512, macro-F1 0.357-0.396
+
+Validation macro-F1 by model (mean, sd over seeds; val_acc is mean accuracy):
+            mean       std  val_acc
+model                              
+BiLSTM  0.389907  0.004032  0.46684
+
+Per-class report (seed 42):
+                      precision    recall  f1-score   support
+
+    ball_out_of_play       0.11      0.10      0.11        30
+     ball_possession       0.26      0.20      0.23        92
+           clearance       0.48      0.43      0.45       346
+              corner       0.60      0.50      0.54       369
+    end_of_half_game       0.72      0.71      0.72        73
+foul_lead_to_penalty       0.31      0.27      0.29        15
+   foul_with_no_card       0.46      0.42      0.44       192
+           free_kick       0.20      0.24      0.21        34
+                goal       0.68      0.70      0.69       126
+              injury       0.53      0.56      0.55        75
+      lead_to_corner       0.37      0.43      0.40       163
+            off_side       0.30      0.51      0.38        71
+             penalty       0.00      0.00      0.00         9
+            red_card       0.00      0.00      0.00         3
+saved_by_goal-keeper       0.28      0.29      0.29       112
+     shot_off_target       0.37      0.46      0.41       164
+  start_of_half_game       0.85      0.99      0.91        75
+        substitution       0.74      0.73      0.74       211
+            throw_in       0.00      0.00      0.00         7
+                 var       0.52      0.48      0.50        25
+         yellow_card       0.47      0.51      0.49       118
+
+            accuracy                           0.49      2310
+           macro avg       0.39      0.41      0.40      2310
+        weighted avg       0.50      0.49      0.49      2310
