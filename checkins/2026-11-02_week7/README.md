@@ -2,8 +2,6 @@
 
 Team: Hasset Admasu, Aniyah, Adonay, Nathnael
 
-Written report: [week7_report.tex](week7_report.tex) (LaTeX).
-
 **This week:** the rerun with model selection by validation macro-F1 finished, and we looked at *why* the sequence model stops at about 50% accuracy. We ran two experiments: one on overlapping events, one with a class-weighted loss. The 2022-23 season hold-out is still untouched.
 
 ## 1. Final baseline

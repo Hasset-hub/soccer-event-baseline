@@ -2,8 +2,6 @@
 
 Team: Hasset Admasu, Aniyah, Adonay, Nathnael
 
-Written report: [week6_report.tex](week6_report.tex) (LaTeX).
-
 **This week:** baseline results on real data, scored with macro-F1 and balanced accuracy, on 255 Premier League matches (up from 65). The 2022-23 season is reserved, untouched, as the final hold-out. Model selection now uses macro-F1, and every result on this page comes from that selection.
 
 ## 1. Baseline results on real data
