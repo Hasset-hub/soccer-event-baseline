@@ -1,0 +1,5 @@
+Validation only (no test scores). Best: BiLSTM, mean val macro-F1 0.3333 over 3 seed(s)
+
+            mean       std   val_acc
+model                               
+BiLSTM  0.333345  0.011138  0.442566
