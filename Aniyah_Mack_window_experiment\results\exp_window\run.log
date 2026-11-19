@@ -1,0 +1,78 @@
+=== full Mon Nov  9 16:42:54 UTC 2026
+Events: train=11243 val=2307 test=2310  classes=21  dim=768
+BiLSTM         seed 42  stopped@ 28  best val macro-F1=0.389 accuracy=47.6%
+BiLSTM         seed 43  stopped@ 26  best val macro-F1=0.376 accuracy=47.2%
+BiLSTM         seed 44  stopped@ 25  best val macro-F1=0.395 accuracy=48.9%
+
+Validation only (no test scores). Best: BiLSTM, mean val macro-F1 0.3866 over 3 seed(s)
+
+            mean      std   val_acc
+model                              
+BiLSTM  0.386595  0.00974  0.479266
+
+=== b15_a15 Mon Nov  9 16:46:38 UTC 2026
+Window: 15.0s before to 15.0s after the event; frames per event 58.8 -> 30.3 (min 0)
+Events: train=11243 val=2307 test=2310  classes=21  dim=768
+BiLSTM         seed 42  stopped@ 23  best val macro-F1=0.330 accuracy=44.9%
+BiLSTM         seed 43  stopped@ 26  best val macro-F1=0.347 accuracy=44.2%
+BiLSTM         seed 44  stopped@ 25  best val macro-F1=0.332 accuracy=45.0%
+
+Validation only (no test scores). Best: BiLSTM, mean val macro-F1 0.3364 over 3 seed(s)
+
+            mean       std   val_acc
+model                               
+BiLSTM  0.336439  0.008982  0.446756
+
+=== b10_a10 Mon Nov  9 16:48:51 UTC 2026
+Window: 10.0s before to 10.0s after the event; frames per event 58.8 -> 20.5 (min 0)
+Events: train=11243 val=2307 test=2310  classes=21  dim=768
+BiLSTM         seed 42  stopped@ 23  best val macro-F1=0.312 accuracy=43.2%
+BiLSTM         seed 43  stopped@ 28  best val macro-F1=0.319 accuracy=40.6%
+BiLSTM         seed 44  stopped@ 27  best val macro-F1=0.327 accuracy=41.4%
+
+Validation only (no test scores). Best: BiLSTM, mean val macro-F1 0.3193 over 3 seed(s)
+
+            mean       std   val_acc
+model                               
+BiLSTM  0.319291  0.007695  0.417281
+
+=== b30_a10 Mon Nov  9 16:50:50 UTC 2026
+Window: 30.0s before to 10.0s after the event; frames per event 58.8 -> 39.8 (min 9)
+Events: train=11243 val=2307 test=2310  classes=21  dim=768
+BiLSTM         seed 42  stopped@ 25  best val macro-F1=0.346 accuracy=45.2%
+BiLSTM         seed 43  stopped@ 27  best val macro-F1=0.345 accuracy=44.3%
+BiLSTM         seed 44  stopped@ 27  best val macro-F1=0.363 accuracy=45.3%
+
+Validation only (no test scores). Best: BiLSTM, mean val macro-F1 0.3512 over 3 seed(s)
+
+            mean       std   val_acc
+model                               
+BiLSTM  0.351162  0.009942  0.449646
+
+=== b30_a5 Mon Nov  9 16:53:32 UTC 2026
+Window: 30.0s before to 5.0s after the event; frames per event 58.8 -> 34.9 (min 5)
+Events: train=11243 val=2307 test=2310  classes=21  dim=768
+BiLSTM         seed 42  stopped@ 26  best val macro-F1=0.328 accuracy=44.6%
+BiLSTM         seed 43  stopped@ 26  best val macro-F1=0.326 accuracy=43.5%
+BiLSTM         seed 44  stopped@ 26  best val macro-F1=0.346 accuracy=44.7%
+
+Validation only (no test scores). Best: BiLSTM, mean val macro-F1 0.3333 over 3 seed(s)
+
+            mean       std   val_acc
+model                               
+BiLSTM  0.333345  0.011138  0.442566
+
+=== b30_a0 Mon Nov  9 16:55:57 UTC 2026
+Window: 30.0s before to 0.0s after the event; frames per event 58.8 -> 29.9 (min 1)
+Events: train=11243 val=2307 test=2310  classes=21  dim=768
+BiLSTM         seed 42  stopped@ 28  best val macro-F1=0.280 accuracy=37.5%
+BiLSTM         seed 43  stopped@ 26  best val macro-F1=0.287 accuracy=39.1%
+BiLSTM         seed 44  stopped@ 26  best val macro-F1=0.292 accuracy=38.4%
+
+Validation only (no test scores). Best: BiLSTM, mean val macro-F1 0.2862 over 3 seed(s)
+
+          mean       std  val_acc
+model                            
+BiLSTM  0.2862  0.005767  0.38376
+
+=== ALL DONE Mon Nov  9 16:58:20 UTC 2026
