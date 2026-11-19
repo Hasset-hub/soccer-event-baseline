@@ -1,0 +1,276 @@
+diff --git a/scripts/sequence_classifier.py b/scripts/sequence_classifier.py
+index 2742f0b..bd0e8c1 100644
+--- a/scripts/sequence_classifier.py
++++ b/scripts/sequence_classifier.py
+@@ -20,6 +20,7 @@ Per-dimension standardisation uses training frames only.
+ 
+ Usage:
+     python scripts/sequence_classifier.py
++    python scripts/sequence_classifier.py --before-sec 30 --after-sec 5   # less look-ahead
+ """
+ 
+ import argparse
+@@ -31,10 +32,10 @@ import torch
+ import torch.nn as nn
+ from sklearn.metrics import classification_report, f1_score
+ 
+-from soccer.config import data_path, dropped_labels, load_config, repo_path
++from soccer.config import data_path, dropped_labels, label_merges, load_config, repo_path
+ from soccer.encoding import pick_device
+ from soccer.evaluation import prediction_rows, split_by_game
+-from soccer.features import load_temporal
++from soccer.features import frame_offsets, load_temporal
+ from soccer.manifest import load_manifest, manifest_games
+ from soccer.metrics import bootstrap_ci, classification_scores
+ 
+@@ -119,6 +120,16 @@ def main(argv=None):
+     parser.add_argument("--hidden-dim", type=int, default=256)
+     parser.add_argument("--seeds", type=int, nargs="+", default=[cfg["seed"]])
+     parser.add_argument("--keep-all-labels", action="store_true")
++    parser.add_argument("--models", nargs="+", choices=list(MODELS), default=list(MODELS),
++                        help="which sequence models to train (default: all)")
++    parser.add_argument("--val-only", action="store_true",
++                        help="stop after validation: no test scores, e.g. while choosing a setting")
++    parser.add_argument("--before-sec", type=float, default=None,
++                        help="keep only frames this many seconds before the event (default: all)")
++    parser.add_argument("--after-sec", type=float, default=None,
++                        help="keep only frames this many seconds after the event (default: all)")
++    parser.add_argument("--frames-root", default=str(data_path(cfg, "frames")),
++                        help="frame folders, to rebuild frame times for --before-sec/--after-sec")
+     parser.add_argument("--device", default="auto", help="cuda / cpu / auto (GPU only if it has free memory)")
+     args = parser.parse_args(argv)
+ 
+@@ -127,8 +138,19 @@ def main(argv=None):
+     out_dir.mkdir(parents=True, exist_ok=True)
+ 
+     tf = load_temporal(args.features, games=manifest_games(cfg))
++    if args.before_sec is not None or args.after_sec is not None:
++        offsets, mismatched = frame_offsets(tf, args.frames_root)
++        if mismatched:
++            raise SystemExit(f"{mismatched} events have a different number of frames on disk than "
++                             f"encoded; their frame times are unknown, so a window cannot be applied")
++        before = np.inf if args.before_sec is None else args.before_sec
++        after = np.inf if args.after_sec is None else args.after_sec
++        n_full = tf.masks.sum(1).mean()
++        tf = tf.window(offsets, before, after)
++        print(f"Window: {before}s before to {after}s after the event; frames per event "
++              f"{n_full:.1f} -> {tf.masks.sum(1).mean():.1f} (min {tf.masks.sum(1).min()})")
+     if not args.keep_all_labels:
+-        tf = tf.drop_labels(dropped_labels(cfg))
++        tf = tf.drop_labels(dropped_labels(cfg)).merge_labels(label_merges(cfg))
+     split = split_by_game(tf.games, tf.labels, load_manifest(repo_path(cfg, "manifest")),
+                           args.val_games, args.test_games)
+     classes = sorted(set(tf.labels[split.train]))
+@@ -148,12 +170,15 @@ def main(argv=None):
+         ds = torch.utils.data.TensorDataset(X[mask & keep], M[mask & keep], Y[mask & keep])
+         return torch.utils.data.DataLoader(ds, batch_size=args.batch_size, shuffle=shuffle, generator=generator)
+ 
+-    def predict(model, mask):
++    def predict_proba(model, mask):
+         model.eval()
+         with torch.no_grad():
+-            return torch.cat([model(xb.to(device), mb.to(device)).argmax(1).cpu()
++            return torch.cat([model(xb.to(device), mb.to(device)).softmax(1).cpu()
+                               for xb, mb, _ in loader(mask, False)]).numpy()
+ 
++    def predict(model, mask):
++        return predict_proba(model, mask).argmax(1)
++
+     def train(cls, seed):
+         torch.manual_seed(seed)
+         np.random.seed(seed)
+@@ -186,7 +211,8 @@ def main(argv=None):
+     y_test, y_train = y[split.test & keep], y[split.train & keep]
+     test_games = tf.games[split.test & keep]
+     rows, runs = [], {}
+-    for name, cls in MODELS.items():
++    for name in args.models:
++        cls = MODELS[name]
+         for seed in args.seeds:
+             model, (val_f1, val_acc), stopped = train(cls, seed)
+             runs[(name, seed)] = model
+@@ -199,19 +225,40 @@ def main(argv=None):
+                                         val_acc=("val_acc", "mean"))
+                 .sort_values(["mean", "val_acc"], ascending=False))
+     chosen = by_model.index[0]
++    if args.val_only:
++        df.to_csv(out_dir / "sequence_results.csv", index=False)
++        summary = (f"Validation only (no test scores). Best: {chosen}, mean val macro-F1 "
++                   f"{by_model.loc[chosen, 'mean']:.4f} over {len(args.seeds)} seed(s)\n\n"
++                   f"{by_model.to_string()}\n")
++        (out_dir / "sequence_validation_report.txt").write_text(summary)
++        print("\n" + summary)
++        return
+ 
+     # Test only the chosen model, once per seed.
+-    test_rows, preds = [], []
++    test_rows, preds, test_probs = [], [], []
+     for seed in args.seeds:
+-        pred = predict(runs[(chosen, seed)], split.test)
++        probs = predict_proba(runs[(chosen, seed)], split.test)
++        pred = probs.argmax(1)
+         preds.append(pred)
++        test_probs.append(probs)
+         test_rows.append({"seed": seed, **classification_scores(y_test, pred, y_train)})
+     test_df = pd.DataFrame(test_rows)
+     in_test = split.test & keep
+     pd.concat([prediction_rows(test_games, tf.halves[in_test], tf.event_tags[in_test],
+-                             [classes[i] for i in y_test], [classes[i] for i in pred], seed=seed)
+-               for seed, pred in zip(args.seeds, preds, strict=True)]).to_csv(
++                             [classes[i] for i in y_test], [classes[i] for i in pred], seed=seed,
++                             probs=probs, classes=classes)
++               for seed, pred, probs in zip(args.seeds, preds, test_probs, strict=True)]).to_csv(
+         out_dir / "sequence_test_predictions.csv", index=False)
++    # Validation predictions of the chosen model, so thresholds on confidence (e.g. when commentary
++    # should hedge) can be picked without looking at the test set.
++    in_val = split.val & keep
++    val_rows = []
++    for seed in args.seeds:
++        probs = predict_proba(runs[(chosen, seed)], split.val)
++        val_rows.append(prediction_rows(tf.games[in_val], tf.halves[in_val], tf.event_tags[in_val],
++                                        tf.labels[in_val], [classes[i] for i in probs.argmax(1)],
++                                        seed=seed, probs=probs, classes=classes))
++    pd.concat(val_rows).to_csv(out_dir / "sequence_val_predictions.csv", index=False)
+     ci = bootstrap_ci(np.tile(y_test, len(preds)), np.concatenate(preds), np.tile(test_games, len(preds)),
+                       seed=args.seeds[0])
+ 
+diff --git a/soccer/features.py b/soccer/features.py
+index d3db143..effab60 100644
+--- a/soccer/features.py
++++ b/soccer/features.py
+@@ -3,7 +3,7 @@
+ from __future__ import annotations
+ 
+ import pathlib
+-from dataclasses import dataclass, fields
++from dataclasses import dataclass, fields, replace
+ 
+ import numpy as np
+ 
+@@ -30,6 +30,25 @@ class TemporalFeatures:
+     def drop_labels(self, labels: set[str]) -> "TemporalFeatures":
+         return self.subset(~np.isin(self.labels, list(labels)))
+ 
++    def merge_labels(self, mapping: dict[str, str]) -> "TemporalFeatures":
++        """Relabel events, e.g. {"second_yellow_card": "red_card"}."""
++        if not mapping:
++            return self
++        return replace(self, labels=np.array([mapping.get(label, label) for label in self.labels]))
++
++    def window(self, offsets: np.ndarray, before_sec: float, after_sec: float) -> "TemporalFeatures":
++        """Keep only frames from `before_sec` before to `after_sec` after each event.
++
++        `offsets` (E, T) is each frame's time minus its event's time (see frame_offsets).
++        Kept frames stay in time order and are moved to the front, as the models expect.
++        """
++        keep = self.masks & (offsets >= -before_sec) & (offsets <= after_sec)
++        order = np.argsort(~keep, axis=1, kind="stable")
++        masks = np.take_along_axis(keep, order, axis=1)
++        n = max(1, int(masks.sum(1).max()))
++        features = np.take_along_axis(self.features, order[:, :n, None], axis=1) * masks[:, :n, None]
++        return replace(self, features=features, masks=masks[:, :n])
++
+ 
+ def load_temporal(path: str | pathlib.Path, games=None) -> TemporalFeatures:
+     """Read clip_temporal_padded.npz (a file, or the directory holding it).
+@@ -54,6 +73,30 @@ def load_temporal(path: str | pathlib.Path, games=None) -> TemporalFeatures:
+     return tf
+ 
+ 
++def frame_offsets(tf: TemporalFeatures, frames_root: str | pathlib.Path) -> tuple[np.ndarray, int]:
++    """(E, T) time of each encoded frame minus its event's time, in seconds (NaN for padding).
++
++    Frame times are not stored in the features file, so they are rebuilt from the frame
++    filenames with the same selection the encoder used (soccer.frames.select_frames).
++    Returns the offsets and the number of events whose frame count does not match their
++    mask (e.g. an unreadable frame was skipped while encoding); their offsets stay NaN.
++    """
++    from soccer.annotations import tag_to_seconds
++    from soccer.frames import scan_events, select_frames
++
++    events = scan_events(frames_root, require_marker=False)
++    offsets = np.full(tf.masks.shape, np.nan)
++    mismatched = 0
++    for i, key in enumerate(zip(tf.games, tf.halves, tf.labels, tf.event_tags, strict=True)):
++        times = [t for t, _ in select_frames(events.get(key, []), tf.masks.shape[1])]
++        n = int(tf.masks[i].sum())
++        if len(times) != n:
++            mismatched += 1
++            continue
++        offsets[i, :n] = np.array(times) - tag_to_seconds(key[3])
++    return offsets, mismatched
++
++
+ def l2_normalize(x: np.ndarray) -> np.ndarray:
+     return x / np.linalg.norm(x, axis=-1, keepdims=True).clip(min=1e-8)
+ 
+diff --git a/tests/test_features_metrics.py b/tests/test_features_metrics.py
+index e5a4d1a..cba0864 100644
+--- a/tests/test_features_metrics.py
++++ b/tests/test_features_metrics.py
+@@ -57,6 +57,9 @@ def test_load_temporal_normalises_game_ids(tmp_path):
+     assert list(tf.games) == ["31", "07"]
+     kept = tf.drop_labels({"unknown"})
+     assert len(kept) == 1 and kept.labels[0] == "corner" and kept.features.shape == (1, 4, 2)
++    merged = tf.merge_labels({"unknown": "corner"})
++    assert list(merged.labels) == ["corner", "corner"] and list(tf.labels) == ["corner", "unknown"]
++    assert tf.merge_labels({}) is tf
+ 
+ 
+ def test_purity_and_its_random_baseline():
+@@ -107,3 +110,29 @@ def test_load_temporal_can_keep_only_manifest_games(tmp_path):
+                         halves=np.array(["1", "1"]), event_tags=np.array(["00-10.000", "00-20.000"]))
+     tf = load_temporal(tmp_path, games=["1"])
+     assert list(tf.games) == ["01"] and tf.features.shape[0] == 1
++
++
++def test_window_keeps_frames_in_range_packed_to_the_front():
++    from soccer.features import TemporalFeatures
++    feats = np.arange(2 * 4 * 1, dtype=np.float32).reshape(2, 4, 1) + 1
++    masks = np.array([[True, True, True, True], [True, True, False, False]])
++    offsets = np.array([[-2.0, -1.0, 0.0, 1.0], [0.0, 1.0, np.nan, np.nan]])
++    tf = TemporalFeatures(feats, masks, np.array(["a", "b"]), np.array(["01", "01"]),
++                          np.array(["1", "1"]), np.array(["00-10.000", "00-20.000"]))
++    w = tf.window(offsets, before_sec=1, after_sec=0)
++    assert w.masks.tolist() == [[True, True], [True, False]]
++    assert w.features[:, :, 0].tolist() == [[2.0, 3.0], [5.0, 0.0]]  # frames at -1 s and 0 s; padding zero
++
++
++def test_frame_offsets_from_frame_filenames(tmp_path):
++    from soccer.features import TemporalFeatures, frame_offsets
++    d = tmp_path / "game_01_half_1" / "frames" / "corner"
++    d.mkdir(parents=True)
++    for t in ("00-09.000", "00-10.000", "00-11.000"):
++        (d / f"corner_frame_00-10.000_t{t}.jpg").write_bytes(b"")
++    tf = TemporalFeatures(np.zeros((2, 3, 1), np.float32), np.array([[True] * 3, [True, False, False]]),
++                          np.array(["corner", "corner"]), np.array(["01", "01"]), np.array(["1", "1"]),
++                          np.array(["00-10.000", "00-30.000"]))
++    offsets, mismatched = frame_offsets(tf, tmp_path)
++    assert offsets[0].tolist() == [-1.0, 0.0, 1.0]
++    assert mismatched == 1 and np.isnan(offsets[1]).all()  # second event has no frames on disk
+diff --git a/tests/test_scripts_smoke.py b/tests/test_scripts_smoke.py
+index 1c98cf6..3738316 100644
+--- a/tests/test_scripts_smoke.py
++++ b/tests/test_scripts_smoke.py
+@@ -184,3 +184,21 @@ def test_sequence_classifier(data):
+     for seed, group in preds.groupby("seed"):  # each seed's saved predictions give its reported accuracy
+         acc = (group.label == group.pred).mean()
+         assert abs(acc - by_seed.set_index("seed").loc[int(seed), "Accuracy"]) < 1e-9
++    for name in ("sequence_test_predictions.csv", "sequence_val_predictions.csv"):
++        p = pd.read_csv(out / name)
++        assert p.confidence.between(0, 1).all() and (p.confidence >= p.confidence2).all()
++        assert (p.pred != p.pred2).all()
++
++
++def test_sequence_classifier_val_only_writes_no_test_results(data):
++    pytest.importorskip("torch")
++    import sequence_classifier
++
++    out = data / "seq_val"
++    sequence_classifier.main(["--features", str(data / "temporal"), "--out-dir", str(out), "--epochs", "2",
++                              "--hidden-dim", "16", "--device", "cpu", "--seeds", "1", "--models", "BiLSTM",
++                              "--val-only"])
++    assert set(pd.read_csv(out / "sequence_results.csv").model) == {"BiLSTM"}
++    assert "no test scores" in (out / "sequence_validation_report.txt").read_text()
++    assert not (out / "sequence_test_predictions.csv").exists()
++    assert not (out / "sequence_test_by_seed.csv").exists()
